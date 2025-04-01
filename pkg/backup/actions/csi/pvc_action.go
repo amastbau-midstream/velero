@@ -48,6 +48,7 @@ import (
 	"github.com/vmware-tanzu/velero/pkg/util/boolptr"
 	"github.com/vmware-tanzu/velero/pkg/util/csi"
 	kubeutil "github.com/vmware-tanzu/velero/pkg/util/kube"
+	"k8s.io/apimachinery/pkg/api/resource"
 )
 
 // pvcBackupItemAction is a backup item action plugin for Velero.
@@ -252,6 +253,25 @@ func (p *pvcBackupItemAction) Execute(
 		return nil, nil, "", nil, err
 	}
 
+	// Wait until VS associated VSC snapshot handle created before
+	// continue.we later requier the vsc restore size
+	vsc, err := csi.WaitUntilVSCHandleIsReady(
+		vs,
+		p.crClient,
+		p.log,
+		true,
+		backup.Spec.CSISnapshotTimeout.Duration,
+	)
+	if err != nil {
+		p.log.Errorf(
+			"Fail to wait VolumeSnapshot turned to ReadyToUse: %s",
+			err.Error(),
+		)
+		csi.CleanupVolumeSnapshot(vs, p.crClient, p.log)
+		return nil, nil, "", nil, errors.WithStack(err)
+	}
+
+
 	labels := map[string]string{
 		velerov1api.VolumeSnapshotLabel: vs.Name,
 		velerov1api.BackupNameLabel:     backup.Name,
@@ -278,24 +298,6 @@ func (p *pvcBackupItemAction) Execute(
 			"Operation ID":   operationID,
 			"Backup":         backup.Name,
 		})
-
-		// Wait until VS associated VSC snapshot handle created before
-		// returning with the Async operation for data mover.
-		_, err := csi.WaitUntilVSCHandleIsReady(
-			vs,
-			p.crClient,
-			p.log,
-			true,
-			backup.Spec.CSISnapshotTimeout.Duration,
-		)
-		if err != nil {
-			dataUploadLog.Errorf(
-				"Fail to wait VolumeSnapshot turned to ReadyToUse: %s",
-				err.Error(),
-			)
-			csi.CleanupVolumeSnapshot(vs, p.crClient, p.log)
-			return nil, nil, "", nil, errors.WithStack(err)
-		}
 
 		dataUploadLog.Info("Starting data upload of backup")
 
@@ -340,6 +342,13 @@ func (p *pvcBackupItemAction) Execute(
 			dataUploadLog.Info("DataUpload is submitted successfully.")
 		}
 	} else {
+		p.log.Debugf("Patching PVC request size to fit the volumesnapshot restore size %d", vsc.Status.RestoreSize)
+		err = setPVCRequestSizeToVSRestoreSize(&pvc, p.crClient, vs.Name, vsc, p.log)
+		if err != nil {
+			p.log.Errorf("Failed to set PVC request size: %s", err.Error())
+			return nil, nil, "", nil, errors.WithStack(err)
+		}
+
 		additionalItems = []velero.ResourceIdentifier{
 			{
 				GroupResource: kuberesource.VolumeSnapshots,
@@ -562,5 +571,65 @@ func NewPvcBackupItemAction(f client.Factory) plugincommon.HandlerInitializer {
 			log:      logger,
 			crClient: crClient,
 		}, nil
+	}
+}
+
+func setPVCRequestSizeToVSRestoreSize(
+	pvc *corev1api.PersistentVolumeClaim,
+	crClient crclient.Client,
+	volumeSnapshotName string,
+	vsc *snapshotv1api.VolumeSnapshotContent,
+	logger logrus.FieldLogger,
+) error {
+	vs := new(snapshotv1api.VolumeSnapshot)
+	if err := crClient.Get(context.TODO(),
+		crclient.ObjectKey{
+			Namespace: pvc.Namespace,
+			Name:      volumeSnapshotName,
+		},
+		vs,
+	); err != nil {
+		return errors.Wrapf(err, "Failed to get Volumesnapshot %s/%s to restore PVC %s/%s",
+			pvc.Namespace, volumeSnapshotName, pvc.Namespace, pvc.Name)
+	}
+
+	
+	if vsc.Status.RestoreSize != nil {
+		restoreSize :=	*resource.NewQuantity(*vsc.Status.RestoreSize, resource.BinarySI)
+
+		// It is possible that the volume provider allocated a larger
+		// capacity volume than what was requested in the backed up PVC.
+		// In this scenario the volumesnapshot of the PVC will end being
+		// larger than its requested storage size.  Such a PVC, on restore
+		// as-is, will be stuck attempting to use a VolumeSnapshot as a
+		// data source for a PVC that is not large enough.
+		// To counter that, here we set the storage request on the PVC
+		// to the larger of the PVC's storage request and the size of the
+		// VolumeSnapshot
+		setPVCStorageResourceRequest(pvc, restoreSize, logger)
+	}
+
+	
+	return nil
+
+}
+
+func setPVCStorageResourceRequest(
+	pvc *corev1api.PersistentVolumeClaim,
+	restoreSize resource.Quantity,
+	log logrus.FieldLogger,
+) {
+	{
+		if pvc.Spec.Resources.Requests == nil {
+			pvc.Spec.Resources.Requests = corev1api.ResourceList{}
+		}
+
+		storageReq, exists := pvc.Spec.Resources.Requests[corev1api.ResourceStorage]
+		if !exists || storageReq.Cmp(restoreSize) < 0 {
+			pvc.Spec.Resources.Requests[corev1api.ResourceStorage] = restoreSize
+			rs := pvc.Spec.Resources.Requests[corev1api.ResourceStorage]
+			log.Infof("Resetting storage requests for PVC %s/%s to %s",
+				pvc.Namespace, pvc.Name, rs.String())
+		}
 	}
 }
