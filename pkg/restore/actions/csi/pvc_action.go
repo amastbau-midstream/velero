@@ -31,6 +31,7 @@ import (
 	utilrand "k8s.io/apimachinery/pkg/util/rand"
 	crclient "sigs.k8s.io/controller-runtime/pkg/client"
 
+	snapshotv1api "github.com/kubernetes-csi/external-snapshotter/client/v7/apis/volumesnapshot/v1"
 	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	velerov2alpha1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v2alpha1"
 	"github.com/vmware-tanzu/velero/pkg/client"
@@ -40,9 +41,8 @@ import (
 	"github.com/vmware-tanzu/velero/pkg/plugin/velero"
 	riav2 "github.com/vmware-tanzu/velero/pkg/plugin/velero/restoreitemaction/v2"
 	uploaderUtil "github.com/vmware-tanzu/velero/pkg/uploader/util"
-	"github.com/vmware-tanzu/velero/pkg/util/boolptr"
-	snapshotv1api "github.com/kubernetes-csi/external-snapshotter/client/v7/apis/volumesnapshot/v1"
 	"github.com/vmware-tanzu/velero/pkg/util"
+	"github.com/vmware-tanzu/velero/pkg/util/boolptr"
 )
 
 const (
@@ -64,7 +64,6 @@ func (p *pvcRestoreItemAction) AppliesTo() (velero.ResourceSelector, error) {
 		//TODO: add label selector volumeSnapshotLabel
 	}, nil
 }
-
 
 // Execute modifies the PVC's spec to use the VolumeSnapshot object as the
 // data source ensuring that the newly provisioned volume can be pre-populated
@@ -114,7 +113,6 @@ func (p *pvcRestoreItemAction) Execute(
 		pvc.Spec.DataSource = nil
 		pvc.Spec.DataSourceRef = nil
 	} else {
-
 		backup := new(velerov1api.Backup)
 		err := p.crClient.Get(
 			context.TODO(),
@@ -131,7 +129,6 @@ func (p *pvcRestoreItemAction) Execute(
 		}
 
 		if boolptr.IsSetToTrue(backup.Spec.SnapshotMoveData) {
-
 			logger.Info("Start DataMover restore.")
 
 			// If PVC doesn't have a DataUploadNameLabel, which should be created
@@ -169,10 +166,10 @@ func (p *pvcRestoreItemAction) Execute(
 			//To avoid confilcs, vs and vsc get a new uniq name based in restore UID
 			// and vs name old name
 			newVSName := util.GenerateSha256FromRestoreUIDAndVsName(string(input.Restore.UID), vsName)
-			
+
 			p.log.Debugf("Setting PVC source to VolumeSnapshot new name: %s", newVSName)
 			resetPVCSourceToVolumeSnapshot(&pvc, newVSName)
-	
+
 			additionalItems = append(additionalItems, velero.ResourceIdentifier{
 				GroupResource: kuberesource.VolumeSnapshots,
 				Name:          vsName,
@@ -207,7 +204,6 @@ func resetPVCSourceToVolumeSnapshot(pvc *corev1api.PersistentVolumeClaim, vsName
 	pvc.Spec.DataSource = dataSource
 	pvc.Spec.DataSourceRef = nil
 }
-
 
 func (p *pvcRestoreItemAction) Name() string {
 	return "PVCRestoreItemAction"
@@ -445,8 +441,6 @@ func newDataDownload(
 	}
 	return dataDownload
 }
-
-
 
 func restoreFromDataUploadResult(
 	ctx context.Context,
