@@ -37,6 +37,8 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	crclient "sigs.k8s.io/controller-runtime/pkg/client"
 
+	"k8s.io/apimachinery/pkg/api/resource"
+
 	"github.com/vmware-tanzu/velero/pkg/apis/velero/shared"
 	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	velerov2alpha1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v2alpha1"
@@ -45,7 +47,6 @@ import (
 	"github.com/vmware-tanzu/velero/pkg/plugin/velero"
 	velerotest "github.com/vmware-tanzu/velero/pkg/test"
 	"github.com/vmware-tanzu/velero/pkg/util/boolptr"
-	"k8s.io/apimachinery/pkg/api/resource"
 )
 
 func TestExecute(t *testing.T) {
@@ -201,7 +202,7 @@ func TestExecute(t *testing.T) {
 					require.NoError(t, err)
 				}()
 			}
-			
+
 			resultUnstructed, _, _, _, err := pvcBIA.Execute(&unstructured.Unstructured{Object: pvcMap}, tc.backup)
 			if tc.expectedErr != nil {
 				require.EqualError(t, err, tc.expectedErr.Error())
@@ -418,10 +419,10 @@ func TestPVCRequestSize(t *testing.T) {
 	logger := logrus.New()
 
 	tests := []struct {
-		name          string
-		pvcInitial    string // initial storage request on the PVC (e.g. "1Gi" or "3Gi")
-		restoreSize   string // restore size set in VSC.Status.RestoreSize (e.g. "2Gi")
-		expectedSize  string // expected storage request on the PVC after update
+		name         string
+		pvcInitial   string // initial storage request on the PVC (e.g. "1Gi" or "3Gi")
+		restoreSize  string // restore size set in VSC.Status.RestoreSize (e.g. "2Gi")
+		expectedSize string // expected storage request on the PVC after update
 	}{
 		{
 			name:         "UpdateRequired: PVC request is lower than restore size",

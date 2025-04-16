@@ -35,6 +35,8 @@ import (
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 	crclient "sigs.k8s.io/controller-runtime/pkg/client"
 
+	"k8s.io/apimachinery/pkg/api/resource"
+
 	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	velerov2alpha1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v2alpha1"
 	"github.com/vmware-tanzu/velero/pkg/client"
@@ -48,7 +50,6 @@ import (
 	"github.com/vmware-tanzu/velero/pkg/util/boolptr"
 	"github.com/vmware-tanzu/velero/pkg/util/csi"
 	kubeutil "github.com/vmware-tanzu/velero/pkg/util/kube"
-	"k8s.io/apimachinery/pkg/api/resource"
 )
 
 // pvcBackupItemAction is a backup item action plugin for Velero.
@@ -270,7 +271,6 @@ func (p *pvcBackupItemAction) Execute(
 		csi.CleanupVolumeSnapshot(vs, p.crClient, p.log)
 		return nil, nil, "", nil, errors.WithStack(err)
 	}
-
 
 	labels := map[string]string{
 		velerov1api.VolumeSnapshotLabel: vs.Name,
@@ -593,9 +593,8 @@ func setPVCRequestSizeToVSRestoreSize(
 			pvc.Namespace, volumeSnapshotName, pvc.Namespace, pvc.Name)
 	}
 
-	
 	if vsc.Status.RestoreSize != nil {
-		restoreSize :=	*resource.NewQuantity(*vsc.Status.RestoreSize, resource.BinarySI)
+		restoreSize := *resource.NewQuantity(*vsc.Status.RestoreSize, resource.BinarySI)
 
 		// It is possible that the volume provider allocated a larger
 		// capacity volume than what was requested in the backed up PVC.
@@ -609,9 +608,7 @@ func setPVCRequestSizeToVSRestoreSize(
 		setPVCStorageResourceRequest(pvc, restoreSize, logger)
 	}
 
-	
 	return nil
-
 }
 
 func setPVCStorageResourceRequest(

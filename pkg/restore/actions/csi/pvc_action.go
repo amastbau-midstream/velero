@@ -32,6 +32,7 @@ import (
 	crclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	snapshotv1api "github.com/kubernetes-csi/external-snapshotter/client/v7/apis/volumesnapshot/v1"
+
 	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	velerov2alpha1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v2alpha1"
 	"github.com/vmware-tanzu/velero/pkg/client"
@@ -175,7 +176,6 @@ func (p *pvcRestoreItemAction) Execute(
 				Name:          vsName,
 				Namespace:     pvc.Namespace,
 			})
-
 		}
 	}
 

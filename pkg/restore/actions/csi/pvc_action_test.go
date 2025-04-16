@@ -171,7 +171,6 @@ func TestResetPVCSpec(t *testing.T) {
 	}
 }
 
-
 func TestProgress(t *testing.T) {
 	currentTime := time.Now()
 	tests := []struct {
@@ -497,7 +496,6 @@ func TestExecute(t *testing.T) {
 				log:      logrus.New(),
 				crClient: velerotest.NewFakeControllerRuntimeClient(t, object...),
 			}
-			
 
 			output, err := pvcRIA.Execute(input)
 			if tc.expectedErr != "" {
