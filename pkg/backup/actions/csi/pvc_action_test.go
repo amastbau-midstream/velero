@@ -47,6 +47,7 @@ import (
 	"github.com/vmware-tanzu/velero/pkg/plugin/velero"
 	velerotest "github.com/vmware-tanzu/velero/pkg/test"
 	"github.com/vmware-tanzu/velero/pkg/util/boolptr"
+	rt "runtime"
 )
 
 func  TestExecute(t *testing.T) {
@@ -498,27 +499,37 @@ type LoggingClient struct {
 }
 
 func (l *LoggingClient) Create(ctx context.Context, obj crclient.Object, opts ...crclient.CreateOption) error {
-	l.Logger.Infof("Create: %T %s/%s", obj, obj.GetNamespace(), obj.GetName())
+	l.logCaller("Create", obj)
 	return l.Client.Create(ctx, obj, opts...)
 }
 
 func (l *LoggingClient) Update(ctx context.Context, obj crclient.Object, opts ...crclient.UpdateOption) error {
-	l.Logger.Infof("Update: %T %s/%s", obj, obj.GetNamespace(), obj.GetName())
+	_, file, line, _ := rt.Caller(1) // get caller 1 level up
+	l.Logger.Infof("Update: %T %s/%s called from %s:%d", obj, obj.GetNamespace(), obj.GetName(), file, line)
+
 	return l.Client.Update(ctx, obj, opts...)
 }
 
 func (l *LoggingClient) Delete(ctx context.Context, obj crclient.Object, opts ...crclient.DeleteOption) error {
-	l.Logger.Infof("Delete: %T %s/%s", obj, obj.GetNamespace(), obj.GetName())
+	l.logCaller("Delete", obj)
 	return l.Client.Delete(ctx, obj, opts...)
 }
 
 func (l *LoggingClient) Get(ctx context.Context, key crclient.ObjectKey, obj crclient.Object, opts ...crclient.GetOption) error {
-	l.Logger.Infof("Get: %T %s/%s", obj, key.Namespace, key.Name)
+	l.logCaller("Get", obj)
 	return l.Client.Get(ctx, key, obj, opts...)
 }
 
-
 func (l *LoggingClient) List(ctx context.Context, list crclient.ObjectList, opts ...crclient.ListOption) error {
-	l.Logger.Infof("List: %T", list)
+	_, file, line, _ := rt.Caller(1)
+	l.Logger.Infof("List: %T called from %s:%d", list, file, line)
 	return l.Client.List(ctx, list, opts...)
+}
+
+func (l *LoggingClient) logCaller(operation string, obj crclient.Object) {
+	if obj == nil {
+		return
+	}
+	_, file, line, _ := rt.Caller(2) // 2 to show *real* caller (not inside LoggingClient itself)
+	l.Logger.Infof("%s: %T %s/%s called from %s:%d", operation, obj, obj.GetNamespace(), obj.GetName(), file, line)
 }
