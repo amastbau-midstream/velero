@@ -616,6 +616,7 @@ func WaitUntilVSCHandleIsReady(
 		true,
 		func(ctx context.Context) (bool, error) {
 			vs := new(snapshotv1api.VolumeSnapshot)
+			log.Infof("[AFTER NEW] VolumeSnapshot:: %+v", vs)
 			if err := crClient.Get(
 				ctx,
 				crclient.ObjectKeyFromObject(volSnap),
@@ -628,12 +629,20 @@ func WaitUntilVSCHandleIsReady(
 						volSnap.Namespace, volSnap.Name,
 					)
 			}
-
+			log.Infof("[AFTER GET] VolumeSnapshot:: %+v", vs)
+			
 			if vs.Status == nil || vs.Status.BoundVolumeSnapshotContentName == nil {
+				log.Infof("NOW YOU DONT SEE ME")
 				log.Infof("Waiting for CSI driver to reconcile volumesnapshot %s/%s. Retrying in %ds",
 					volSnap.Namespace, volSnap.Name, interval/time.Second)
+				log.Infof("VolumeSnapshot:: %+v", vs)
 				return false, nil
+			 } else {
+				log.Infof("NOW YOU SEE ME")
+				log.Infof("VolumeSnapshot:: %+v", vs)
+				// return false, nil
 			}
+
 
 			if err := crClient.Get(
 				ctx,
