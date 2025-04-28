@@ -144,9 +144,17 @@ func  TestExecute(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(*testing.T) {
-			crClient := velerotest.NewFakeControllerRuntimeClient(t)
+			baseClient := velerotest.NewFakeControllerRuntimeClient(t)
+			// crClient := velerotest.NewFakeControllerRuntimeClient(t)
 			logger := logrus.New()
-			logger.Level = logrus.DebugLevel
+			logger.Level = logrus.TraceLevel
+			logger = logrus.New()
+			logger.SetLevel(logrus.DebugLevel)
+			
+			crClient := &LoggingClient{
+				Client: baseClient,
+				Logger: logger,
+			}
 
 			if tc.pvc != nil {
 				require.NoError(t, crClient.Create(context.Background(), tc.pvc))
@@ -482,4 +490,35 @@ func TestPVCRequestSize(t *testing.T) {
 			require.Equal(t, 0, updatedSize.Cmp(expected), "PVC storage request should be %s", tc.expectedSize)
 		})
 	}
+}
+
+type LoggingClient struct {
+	crclient.Client
+	Logger logrus.FieldLogger
+}
+
+func (l *LoggingClient) Create(ctx context.Context, obj crclient.Object, opts ...crclient.CreateOption) error {
+	l.Logger.Infof("Create: %T %s/%s", obj, obj.GetNamespace(), obj.GetName())
+	return l.Client.Create(ctx, obj, opts...)
+}
+
+func (l *LoggingClient) Update(ctx context.Context, obj crclient.Object, opts ...crclient.UpdateOption) error {
+	l.Logger.Infof("Update: %T %s/%s", obj, obj.GetNamespace(), obj.GetName())
+	return l.Client.Update(ctx, obj, opts...)
+}
+
+func (l *LoggingClient) Delete(ctx context.Context, obj crclient.Object, opts ...crclient.DeleteOption) error {
+	l.Logger.Infof("Delete: %T %s/%s", obj, obj.GetNamespace(), obj.GetName())
+	return l.Client.Delete(ctx, obj, opts...)
+}
+
+func (l *LoggingClient) Get(ctx context.Context, key crclient.ObjectKey, obj crclient.Object, opts ...crclient.GetOption) error {
+	l.Logger.Infof("Get: %T %s/%s", obj, key.Namespace, key.Name)
+	return l.Client.Get(ctx, key, obj, opts...)
+}
+
+
+func (l *LoggingClient) List(ctx context.Context, list crclient.ObjectList, opts ...crclient.ListOption) error {
+	l.Logger.Infof("List: %T", list)
+	return l.Client.List(ctx, list, opts...)
 }
